@@ -110,6 +110,15 @@ class AuthProvider extends Core implements AuthProviderInterface
    */
   public function signIn(array $user)
   {
+    // New session ID when the session turns from anonymous to authenticated => protection against session fixation.
+    // It is done first, so the signed-in user is never stored under the ID that was known before signing in.
+    // It is skipped if the user is already in the session: some providers (e.g. Keycloak) call signIn() on every
+    // request to refresh the profile, and changing the ID (and deleting the old session) on every request
+    // would break requests running in parallel.
+    if (!$this->isUserInSession()) {
+      $this->sessionManager()->regenerateId();
+    }
+
     $this->user = $user;
     $this->updateUserInSession($user);
   }

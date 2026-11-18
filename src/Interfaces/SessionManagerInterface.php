@@ -17,4 +17,10 @@ interface SessionManagerInterface
   public function unset(string $path): void;
   public function clear(): void;
 
+  /**
+   * Issues a new session ID (the session data is kept) and sends it to the browser.
+   * Returns false if it is not possible (e.g. the response has already started, or in CLI).
+   */
+  public function regenerateId(bool $deleteOldSession = true): bool;
+
 }

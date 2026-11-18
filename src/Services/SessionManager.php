@@ -116,7 +116,8 @@ class SessionManager extends Core implements SessionManagerInterface
   public function unset(string $path): void
   {
     $this->sessionManager()->start(false);
-    if ($this->isset($path)) unset($_SESSION[$this->salt][$path]);
+    // Note: do not call $this->isset() here. It closes the session, so the removal below would not be saved.
+    unset($_SESSION[$this->salt][$path]);
     $this->sessionManager()->stop();
   }
 
@@ -125,6 +126,45 @@ class SessionManager extends Core implements SessionManagerInterface
     $this->sessionManager()->start(false);
     unset($_SESSION[$this->salt]);
     $this->sessionManager()->stop();
+  }
+
+  /**
+   * Issues a new session ID (the session data is kept) and sends it to the browser.
+   *
+   * It should be called whenever the privilege level of the session changes (e.g. after signing in),
+   * so a session ID known to somebody else before the sign-in (session fixation) becomes useless.
+   *
+   * It is not possible when the response has already started (the cookie with the new ID could not be sent)
+   * and it is skipped in CLI (there are no cookies). In such cases it returns false and the session keeps its ID.
+   *
+   * @param bool $deleteOldSession If true, the session stored under the old ID is deleted.
+   *
+   * @return bool true if the session ID has been changed.
+   *
+   */
+  public function regenerateId(bool $deleteOldSession = true): bool
+  {
+    if (PHP_SAPI === 'cli') return false;
+
+    if (headers_sent()) {
+      $this->logger()->warning('Hubleto: Cannot regenerate session ID, headers have already been sent.');
+      return false;
+    }
+
+    if (empty($this->salt)) throw new \Exception('Hubleto: Cannot regenerate session ID, salt is empty.');
+
+    // start() disables cookies if the session has already been started in this request, so the cookie with
+    // the new ID would not be sent. Therefore the session is re-opened here with cookies enabled. PHP removes
+    // the Set-Cookie header sent by the previous start, so the browser receives only the new ID.
+    $this->stop();
+    session_name($this->salt);
+    if (!session_start(['use_cookies' => 1])) return false;
+    $this->cookieSent = true;
+
+    $regenerated = session_regenerate_id($deleteOldSession);
+    session_write_close();
+
+    return $regenerated;
   }
 
 }
