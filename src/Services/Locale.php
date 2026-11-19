@@ -450,6 +450,17 @@ class Locale extends Core implements LocaleInterface
   }
 
   /**
+   * [Description for getIsoCode]
+   *
+   * @return string
+   * 
+   */
+  public function getIsoCode(): string
+  {
+    return $this->config()->getAsString('locale/isoCode', 'en-EN');
+  }
+
+  /**
    * [Description for getTimezone]
    *
    * @return string
@@ -553,14 +564,13 @@ class Locale extends Core implements LocaleInterface
   /**
    * [Description for getAll]
    *
-   * @param string $keyBy
-   * 
    * @return array
    * 
    */
-  public function getAll(string $keyBy = ""): array
+  public function getAll(): array
   {
     return [
+      "isoCode" => $this->getIsoCode(),
       "dateShortFormat" => $this->getDateShortFormat(),
       "dateLongFormat" => $this->getDateLongFormat(),
       "timeFormat" => $this->getTimeFormat(),
