@@ -22,11 +22,23 @@ class Lookup extends \Hubleto\Framework\Controllers\ApiController {
   {
     $search = $this->router()->urlParamAsString('search');
 
+    // One cache per model, the same key the model clears when a record is saved or deleted.
+    $cacheKey = 'cache/lookup/' . $this->model->fullName;
+    $useCache = empty($search);
+
+    // The answer depends on the user (read scope) and on the other parameters (form record, filters of the app),
+    // so each combination is cached separately.
+    $cacheParams = $this->router()->getUrlParams();
+    unset($cacheParams['search'], $cacheParams['model']);
+    $cacheParams['idUser'] = $this->authProvider()->getUserId();
+    $cacheParamsHash = md5((string) json_encode($cacheParams));
+
     $dataFromCache = false;
     $data = [];
 
-    if (empty($search)) {
-      $cache = $this->config()->getAsJson('cache/lookup/' . $this->modelClass);
+    if ($useCache) {
+      $cachedAnswers = $this->config()->getAsJson($cacheKey);
+      $cache = $cachedAnswers[$cacheParamsHash] ?? null;
       if (is_array($cache) && isset($cache['expiry']) && $cache['expiry'] > time()) {
         $data = $cache['data'];
         $dataFromCache = true;
@@ -41,11 +53,19 @@ class Lookup extends \Hubleto\Framework\Controllers\ApiController {
         $data = $this->model->record->prepareLookupData($dataRaw);
       }
 
-      if (empty($search)) {
-        $this->config()->save('cache/lookup/' . $this->modelClass, json_encode([
+      if ($useCache) {
+        // Expired answers of other parameters are dropped, so the cache does not grow.
+        $validAnswers = [];
+        foreach ($this->config()->getAsJson($cacheKey) as $paramsHash => $cachedAnswer) {
+          $isValid = is_array($cachedAnswer) && ($cachedAnswer['expiry'] ?? 0) > time();
+          if ($isValid) $validAnswers[$paramsHash] = $cachedAnswer;
+        }
+
+        $validAnswers[$cacheParamsHash] = [
           'expiry' => time() + 60*5,
           'data' => $data
-        ]));
+        ];
+        $this->config()->save($cacheKey, json_encode($validAnswers));
       }
     }
 
