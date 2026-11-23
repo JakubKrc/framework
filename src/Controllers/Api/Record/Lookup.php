@@ -38,9 +38,9 @@ class Lookup extends \Hubleto\Framework\Controllers\ApiController {
 
     if ($useCache) {
       $cachedAnswers = $this->config()->getAsJson($cacheKey);
-      $cache = $cachedAnswers[$cacheParamsHash] ?? null;
-      if (is_array($cache) && isset($cache['expiry']) && $cache['expiry'] > time()) {
-        $data = $cache['data'];
+      $cachedAnswer = $cachedAnswers[$cacheParamsHash] ?? null;
+      if ($this->isCachedAnswerValid($cachedAnswer)) {
+        $data = $cachedAnswer['data'];
         $dataFromCache = true;
       }
     }
@@ -57,8 +57,9 @@ class Lookup extends \Hubleto\Framework\Controllers\ApiController {
         // Expired answers of other parameters are dropped, so the cache does not grow.
         $validAnswers = [];
         foreach ($this->config()->getAsJson($cacheKey) as $paramsHash => $cachedAnswer) {
-          $isValid = is_array($cachedAnswer) && ($cachedAnswer['expiry'] ?? 0) > time();
-          if ($isValid) $validAnswers[$paramsHash] = $cachedAnswer;
+          if ($this->isCachedAnswerValid($cachedAnswer)) {
+            $validAnswers[$paramsHash] = $cachedAnswer;
+          }
         }
 
         $validAnswers[$cacheParamsHash] = [
@@ -70,6 +71,14 @@ class Lookup extends \Hubleto\Framework\Controllers\ApiController {
     }
 
     return $data;
+  }
+
+  // A cleared cache of the model is stored as {"expiry":0,"data":[]}, so its items are not valid answers.
+  private function isCachedAnswerValid(mixed $cachedAnswer): bool
+  {
+    if (!is_array($cachedAnswer)) return false;
+    if (!isset($cachedAnswer['expiry'], $cachedAnswer['data'])) return false;
+    return $cachedAnswer['expiry'] > time();
   }
 
 }
