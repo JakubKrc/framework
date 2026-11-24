@@ -24,12 +24,14 @@ class Lookup extends \Hubleto\Framework\Controllers\ApiController {
 
     // One cache per model, the same key the model clears when a record is saved or deleted.
     $cacheKey = 'cache/lookup/' . $this->model->fullName;
+
+    // A search is never cached, it would fill the cache with an answer for every typed text.
     $useCache = empty($search);
 
     // The answer depends on the user (read scope) and on the other parameters (form record, filters of the app),
     // so each combination is cached separately.
     $cacheParams = $this->router()->getUrlParams();
-    unset($cacheParams['search'], $cacheParams['model']);
+    unset($cacheParams['model']);
     $cacheParams['idUser'] = $this->authProvider()->getUserId();
     $cacheParamsHash = md5((string) json_encode($cacheParams));
 
